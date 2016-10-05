@@ -20,7 +20,7 @@ public:
 	virtual void result(bool won);
 	virtual void bulletResult(bool hit);
 	float floatMod(float input, float modNum);
-	void pickTarget();
+	void pickTarget(kf::Vector2 inputPos);
 
 	enum BotState
 	{
@@ -56,6 +56,9 @@ public:
 	kf::Vector2 moveTarget;
 	AimState leadState;
 	int lastHealth;
+	bool attemptedLead;
+	std::vector<kf::Vector2> movePoints;
+	int curPoint;
 };
 
 #endif
