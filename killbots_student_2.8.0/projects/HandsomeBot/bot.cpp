@@ -27,8 +27,6 @@ void HandsomeBot::init(const BotInitialData &initialData, BotAttributes &attrib)
 	attrib.motor=1.0;
 	attrib.weaponSpeed=1.0;
 	attrib.weaponStrength = 1.5;
-	//dir.set(m_rand.norm()*2.0 - 1.0, m_rand.norm()*2.0 - 1.0);
-	dir.set(1, 0);
 	scanDir.set(1, 0);
 	botState = BotState::e_lost;
 	firstFrame = true;
@@ -42,6 +40,8 @@ void HandsomeBot::init(const BotInitialData &initialData, BotAttributes &attrib)
 	shot = false;
 	leadState = AimState::e_noTarget;
 	attemptedLead = false;
+
+	setupNodes();
 }
 
 void HandsomeBot::update(const BotInput &input, BotOutput27 &output)
@@ -256,8 +256,15 @@ void HandsomeBot::pickTarget(kf::Vector2 inputPos)
 		y = m_rand() % (m_initialData.mapData.height - 3) + 2;
 	} while (m_initialData.mapData.data[y*m_initialData.mapData.width + x].wall);
 
-	moveTarget.set(x + 0.5, y + 0.5);
+	kf::Vector2 targetPos;
+	targetPos.set(x, y);
+
+	getAStarPath(inputPos, targetPos);
+
+	//moveTarget.set(x + 0.5, y + 0.5);
 	
+	//Random Movement On A Line
+	/*
 	for (int i = 0; i < 10; i++) 
 	{
 		kf::Vector2 moveVec = moveTarget - inputPos;
@@ -267,5 +274,33 @@ void HandsomeBot::pickTarget(kf::Vector2 inputPos)
 		nextPoint.set((moveVec.x + randDif) * multiplier, (moveVec.y + randDif) * multiplier);
 		nextPoint += inputPos;
 		movePoints.push_back(nextPoint);
+	}
+	*/
+}
+
+void HandsomeBot::setupNodes()
+{
+	int mapWidth = m_initialData.mapData.width;
+
+	for (int i = 0; i < (mapWidth * m_initialData.mapData.height); i++)
+	{
+		kf::Vector2 nodePos;
+		nodePos.set((i % mapWidth), ((i - (i % mapWidth)) / mapWidth));
+		nodes.push_back(new aStarNode(nodePos));
+	}
+}
+
+aStarNode* HandsomeBot::getNode(kf::Vector2 location)
+{
+	return nodes[location.x + (location.y * m_initialData.mapData.height)];
+}
+
+void HandsomeBot::getAStarPath(kf::Vector2 startPos, kf::Vector2 targetPos)
+{
+	//Set H values relative to target
+	for (int i = 0; i < nodes.size; i++) 
+	{
+		aStarNode* currentNode = nodes[i];
+		currentNode->hVal = abs(currentNode->location.x - targetPos.x) + abs(currentNode->location.y - targetPos.y);
 	}
 }
