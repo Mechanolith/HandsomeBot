@@ -25,6 +25,12 @@ public:
 	void getAStarPath(kf::Vector2 startPos, kf::Vector2 targetPos);
 	void setupNodes();
 	aStarNode* getNode(kf::Vector2 location);
+	int locationToID(kf::Vector2 location);
+	kf::Vector2 IDToLocation(int ID);
+	void horizNodeSweep(aStarNode* currentNode, int yVal, aStarNode* targetNode);
+	void vertNodeSweep(aStarNode* currentNode, int xVal, aStarNode* targetNode);
+	void setNodeValues(aStarNode* nodeToSet, aStarNode* currentNode, aStarNode* targetNode);
+	int findNextNode();
 
 	enum BotState
 	{
@@ -62,8 +68,13 @@ public:
 	//Movement
 	int curPoint;
 	kf::Vector2 moveTarget;
-	std::vector<kf::Vector2> movePoints;
+	std::vector<kf::Vector2*> movePoints;
+
+	//Pathfinding
 	std::vector<aStarNode*> nodes;
+	int adjGVal;
+	int diagGVal;
+	bool nextToPathTarget;
 	
 	//Aiming
 	bool shot;
