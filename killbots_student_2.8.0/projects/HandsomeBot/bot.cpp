@@ -174,7 +174,11 @@ void HandsomeBot::update(const BotInput &input, BotOutput27 &output)
 	}
 
 	//Determine Movement Direction
-	output.moveDirection = *movePoints[curPoint] - input.position;
+	if (movePoints.size() > 0) 
+	{
+		output.moveDirection = *movePoints[curPoint] - input.position;
+	}
+
 	if (output.moveDirection.length() < 2)
 	{
 		if(curPoint < movePoints.size() - 1)
@@ -249,10 +253,12 @@ float HandsomeBot::floatMod(float input, float modNum)
 void HandsomeBot::pickTarget(kf::Vector2 inputPos)
 {
 	//Free MovePoint Vector Memory
+	/*
 	for(int i = 0; i < movePoints.size(); i++)
 	{
 		delete movePoints[i];
 	}
+	*/
 
 	movePoints.clear();
 	curPoint = 1;
