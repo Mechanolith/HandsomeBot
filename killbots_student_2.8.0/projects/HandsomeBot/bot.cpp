@@ -43,8 +43,14 @@ void HandsomeBot::init(const BotInitialData &initialData, BotAttributes &attrib)
 
 	adjGVal = 10;
 	diagGVal = 14;
-	movePoints.reserve(m_initialData.mapData.width * m_initialData.mapData.height);
 
+	/*
+	kf::Vector2 initVec;
+	initVec.set(-1. - 1);
+	invalidVecPtr = new kf::Vector2(initVec);
+
+	movePoints.resize(m_initialData.mapData.width * m_initialData.mapData.height, invalidVecPtr);
+	*/
 	setupNodes();
 }
 
@@ -174,16 +180,27 @@ void HandsomeBot::update(const BotInput &input, BotOutput27 &output)
 	}
 
 	//Determine Movement Direction
-	if (movePoints.size() > 0) 
-	{
-		output.moveDirection = *movePoints[curPoint] - input.position;
-	}
+	bool endOfPath = false;
+	kf::Vector2 offsetVec;
+	offsetVec.set(0.5, 0.5);
+	//if (movePoints.size() > 0) 
+	//{
+		//if (movePoints[curPoint] != invalidVecPtr)
+		//{
+			//output.moveDirection = *movePoints[curPoint] - input.position;
+			output.moveDirection = (targetPtr->location - input.position) + offsetVec;
+		//}
+		//else 
+		//{
+//			endOfPath = true;
+		//}
+	//}
 
-	if (output.moveDirection.length() < 2)
+	if (output.moveDirection.length() < 2 || endOfPath)
 	{
-		if(curPoint < movePoints.size() - 1)
+		if (targetPtr->parentID > -1)
 		{
-			curPoint++;
+			targetPtr = nodes[targetPtr->parentID];
 		}
 		else 
 		{
@@ -194,7 +211,7 @@ void HandsomeBot::update(const BotInput &input, BotOutput27 &output)
 	//If hit, freak out.
 	if(input.health < lastHealth)
 	{
-		pickTarget(input.position);
+		//pickTarget(input.position);
 	}
 
 	output.motor = 1.0;
@@ -210,22 +227,40 @@ void HandsomeBot::update(const BotInput &input, BotOutput27 &output)
 	output.text.push_back(TextMsg(testOutput, input.position - kf::Vector2(0.0f, 1.0f), 0.0f, 0.7f, 1.0f, 80));
 
 	output.lines.clear();
-	output.lines.push_back(Line(input.position, moveTarget, 1.0, 1.0, 0.0));
+	output.lines.push_back(Line(input.position, targetPtr->location, 1.0, 1.0, 0.0));
 	output.lines.push_back(Line(input.position, lastPos, 1.0, 0.0, 0.0));
 	output.lines.push_back(Line(input.position, curPos, 0.0, 1.0, 0.0));
 	output.lines.push_back(Line(input.position, nextPos, 0.0, 0.0, 1.0));
 
+	kf::Vector2 pos1;
+	kf::Vector2 pos2;
+	pos2.set(1, 1);
+	pos1.set(2, 2);
+
+	/*
 	for (int k = 0; k < movePoints.size(); k++) 
 	{
-		if (k > 0) 
+		if (k > 0 && movePoints[k] != invalidVecPtr) 
 		{
 			output.lines.push_back(Line(*movePoints[k - 1], *movePoints[k], 1.0, 0.0, 1.0));
 		}
 		else 
 		{
-			//output.lines.push_back(Line(input.position, *movePoints[k], 1.0, 0.0, 1.0));
+			output.lines.push_back(Line(input.position, *movePoints[k], 1.0, 0.0, 1.0));
 		}
 	}
+	*/
+
+	aStarNode* drawNode = targetPtr;
+
+	do 
+	{
+		if (drawNode->parentID > -1) 
+		{
+			output.lines.push_back(Line(drawNode->location + offsetVec, nodes[drawNode->parentID]->location + offsetVec, 1.0, 0.0, 1.0));
+			drawNode = nodes[drawNode->parentID];
+		}
+	} while (drawNode->parentID > -1);
 
 	lastHealth = input.health;
 }
@@ -256,11 +291,14 @@ void HandsomeBot::pickTarget(kf::Vector2 inputPos)
 	/*
 	for(int i = 0; i < movePoints.size(); i++)
 	{
-		delete movePoints[i];
+		if (movePoints[i] != invalidVecPtr) {
+			delete movePoints[i];
+			movePoints[i] = invalidVecPtr;
+		}
 	}
 	*/
 
-	movePoints.clear();
+	//movePoints.clear();
 	curPoint = 1;
 	float limiter = 7;
 
@@ -275,7 +313,7 @@ void HandsomeBot::pickTarget(kf::Vector2 inputPos)
 	kf::Vector2 targetPos;
 	targetPos.set(x, y);
 
-	getAStarPath(inputPos, targetPos);
+	getAStarPath(targetPos, inputPos);
 
 	//moveTarget.set(x + 0.5, y + 0.5);
 	
@@ -333,45 +371,67 @@ kf::Vector2 HandsomeBot::IDToLocation(int ID)
 void HandsomeBot::getAStarPath(kf::Vector2 startPos, kf::Vector2 targetPos)
 {
 	nextToPathTarget = false;
+	startPos.set(roundf(startPos.x), roundf(startPos.y));
+	targetPos.set(roundf(targetPos.x), roundf(targetPos.y));
 	aStarNode* startNode = getNode(startPos);
 	aStarNode* targetNode = getNode(targetPos);
-	int checkNode = startNode->location.y * m_initialData.mapData.width + (startNode->location.x);
+	int checkNode = locationToID(startNode->location);
 
-	//Set H values relative to target
-	for (int i = 0; i < nodes.size(); i++) 
+	//Set H values relative to target, Reset general values.
+	for (int i = 0; i < nodes.size(); i++)
 	{
 		nodes[i]->hVal = abs(nodes[i]->location.x - targetPos.x) + abs(nodes[i]->location.y - targetPos.y);
+		nodes[i]->state = aStarNode::NodeState::e_none;
+		nodes[i]->gVal = 0;
+		nodes[i]->parentID = -1;
 	}
 
 	do {
 		nodes[checkNode]->state = aStarNode::NodeState::e_closed;
 
+		int targetID = -1;
+		int nodeX = nodes[checkNode]->location.x;
+		int nodeY = nodes[checkNode]->location.y;
+		kf::Vector2 targetLocation;
+
 		//If the top exists.
 		if (nodes[checkNode]->edgesMask & aStarNode::NodeEdges::e_top)
 		{
-			horizNodeSweep(nodes[checkNode], (nodes[checkNode]->location.y - 1), targetNode);
+			targetLocation.set(nodeX, nodeY-1);
+			targetID = locationToID(targetLocation);
+			setNodeValues(nodes[targetID], nodes[checkNode], targetNode);
+			//horizNodeSweep(nodes[checkNode], (nodes[checkNode]->location.y - 1), targetNode);
 		}
 
 		if (nodes[checkNode]->edgesMask & aStarNode::NodeEdges::e_bottom)
 		{
-			horizNodeSweep(nodes[checkNode], (nodes[checkNode]->location.y + 1), targetNode);
+			targetLocation.set(nodeX, nodeY + 1);
+			targetID = locationToID(targetLocation);
+			setNodeValues(nodes[targetID], nodes[checkNode], targetNode);
+			//horizNodeSweep(nodes[checkNode], (nodes[checkNode]->location.y + 1), targetNode);
 		}
 
 		if (nodes[checkNode]->edgesMask & aStarNode::NodeEdges::e_left)
 		{
-			vertNodeSweep(nodes[checkNode], (nodes[checkNode]->location.x - 1), targetNode);
+			targetLocation.set(nodeX - 1, nodeY);
+			targetID = locationToID(targetLocation);
+			setNodeValues(nodes[targetID], nodes[checkNode], targetNode);
+			//vertNodeSweep(nodes[checkNode], (nodes[checkNode]->location.x - 1), targetNode);
 		}
 
 		if (nodes[checkNode]->edgesMask & aStarNode::NodeEdges::e_right)
 		{
-			vertNodeSweep(nodes[checkNode], (nodes[checkNode]->location.x + 1), targetNode);
+			targetLocation.set(nodeX + 1, nodeY);
+			targetID = locationToID(targetLocation);
+			setNodeValues(nodes[targetID], nodes[checkNode], targetNode);
+			//vertNodeSweep(nodes[checkNode], (nodes[checkNode]->location.x + 1), targetNode);
 		}
 
 		if (!nextToPathTarget)
 		{
 			checkNode = findNextNode();
 		}
-		else 
+		else
 		{
 			targetNode->parentID = checkNode;
 		}
@@ -379,13 +439,28 @@ void HandsomeBot::getAStarPath(kf::Vector2 startPos, kf::Vector2 targetPos)
 
 	//CheckNode is now for tracing the path back.
 	checkNode = locationToID(targetNode->location);
+	targetPtr = nodes[checkNode];
+	
+	//bool noMoreData = false;
 
-	do 
+	//Do
+	/*
+	for(int k = 0; k < movePoints.size(); k++)
 	{
-		kf::Vector2* vecPtr = new kf::Vector2(nodes[checkNode]->location);
-		movePoints.push_back(vecPtr);
-		checkNode = nodes[checkNode]->parentID;
-	} while (checkNode != locationToID(startNode->location));
+		if(!noMoreData)
+		{
+			kf::Vector2* vecPtr = new kf::Vector2(nodes[checkNode]->location);
+			movePoints[k] = vecPtr;
+			checkNode = nodes[checkNode]->parentID;
+		}
+
+		if (checkNode == locationToID(startNode->location))
+		{
+			noMoreData = true;
+		}
+	} 
+	*/
+	//while (checkNode != locationToID(startNode->location));
 }
 
 void HandsomeBot::horizNodeSweep(aStarNode * currentNode, int yVal, aStarNode * targetNode)
@@ -422,7 +497,7 @@ void HandsomeBot::vertNodeSweep(aStarNode * currentNode, int xVal, aStarNode * t
 
 	if (currentNode->edgesMask & aStarNode::NodeEdges::e_bottom)
 	{
-		targetLocation.set(xVal, (currentNode->location.y - 1));
+		targetLocation.set(xVal, (currentNode->location.y + 1));
 		int targetID = locationToID(targetLocation);
 		setNodeValues(nodes[targetID], currentNode, targetNode);
 	}
@@ -440,27 +515,41 @@ void HandsomeBot::setNodeValues(aStarNode * nodeToSet, aStarNode * currentNode, 
 		{
 			nextToPathTarget = true;
 		}
-		else if(!m_initialData.mapData.data[locationToID(nodeToSet->location)].wall){
-			if (nodeToSet->state == aStarNode::NodeState::e_none)
+		else if(!m_initialData.mapData.data[locationToID(nodeToSet->location)].wall)
+		{
+			int curGVal = 0;
+
+			if (nodeToSet->location.x != currentNode->location.x && nodeToSet->location.y != currentNode->location.y)
 			{
-				nodeToSet->parentID = locationToID(currentNode->location);
-				nodeToSet->state = aStarNode::NodeState::e_open;
+				curGVal = diagGVal;
+			}
+			else
+			{
+				curGVal = adjGVal;
 			}
 
-			if (nodeToSet->state != aStarNode::NodeState::e_closed)
+			switch (nodeToSet->state) 
 			{
-				if (nodeToSet->location.x != currentNode->location.x && nodeToSet->location.y != currentNode->location.y)
-				{
-					nodeToSet->gVal = diagGVal;
-				}
-				else
-				{
-					nodeToSet->gVal = adjGVal;
-				}
+			case aStarNode::NodeState::e_none:
+				nodeToSet->parentID = locationToID(currentNode->location);
+				nodeToSet->state = aStarNode::NodeState::e_open;
 
-				nodeToSet->gVal += currentNode->gVal;
+				nodeToSet->gVal = currentNode->gVal + curGVal;
 
 				nodeToSet->fVal = nodeToSet->hVal + nodeToSet->gVal;
+				break;
+
+			case aStarNode::NodeState::e_open:
+				if (currentNode->gVal + curGVal < nodeToSet->gVal)
+				{
+					nodeToSet->parentID = locationToID(currentNode->location);
+					nodeToSet->gVal = currentNode->gVal + curGVal;
+					nodeToSet->fVal = nodeToSet->hVal + nodeToSet->gVal;
+				}
+				break;
+
+			case aStarNode::NodeState::e_closed:
+				break;
 			}
 		}
 		else 

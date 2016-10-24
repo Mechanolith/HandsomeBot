@@ -67,14 +67,16 @@ public:
 
 	//Movement
 	int curPoint;
-	kf::Vector2 moveTarget;
-	std::vector<kf::Vector2*> movePoints;
+	aStarNode* targetPtr;
+	//kf::Vector2 moveTarget;
+	//std::vector<kf::Vector2*> movePoints;
 
 	//Pathfinding
 	std::vector<aStarNode*> nodes;
 	int adjGVal;
 	int diagGVal;
 	bool nextToPathTarget;
+	kf::Vector2* invalidVecPtr;
 	
 	//Aiming
 	bool shot;
