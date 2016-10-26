@@ -13,11 +13,13 @@
   <ItemGroup>
     <ClCompile Include="aStarNode.cpp" />
     <ClCompile Include="bot.cpp" />
+    <ClCompile Include="nodeLink.cpp" />
     <ClCompile Include="SeenShot.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="aStarNode.h" />
     <ClInclude Include="bot.h" />
+    <ClInclude Include="nodeLink.h" />
     <ClInclude Include="SeenShot.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

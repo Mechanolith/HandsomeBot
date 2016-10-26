@@ -1,6 +1,8 @@
 #pragma once
 #include "bot_interface.h"
 #include "kf/kf_random.h"
+#include "stdafx.h"
+#include "nodeLink.h"
 
 class aStarNode
 {
@@ -23,6 +25,13 @@ public:
 		e_right		= 1 << 3
 	};
 
+	enum NodeType 
+	{
+		e_move = 1 << 0,
+		e_hide = 1 << 1,
+		e_dash = 1 << 2
+	};
+
 	int parentID;
 	int hVal;
 	int gVal;
@@ -30,5 +39,6 @@ public:
 	int edgesMask;
 	kf::Vector2 location;
 	NodeState state;
+	std::vector<nodeLink> links;
 };
 

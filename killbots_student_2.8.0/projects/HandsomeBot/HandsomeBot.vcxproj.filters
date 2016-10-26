@@ -24,6 +24,9 @@
     <ClCompile Include="aStarNode.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="nodeLink.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="bot.h">
@@ -33,6 +36,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="aStarNode.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="nodeLink.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
