@@ -22,41 +22,58 @@ HandsomeBot::~HandsomeBot()
 
 void HandsomeBot::init(const BotInitialData &initialData, BotAttributes &attrib)
 {
+	//Basic Attributes
 	m_initialData = initialData;
-	attrib.health=1.0;
+	attrib.health=10.0;
 	attrib.motor=1.0;
 	attrib.weaponSpeed=1.0;
 	attrib.weaponStrength = 1.5;
-	scanDir.set(1, 0);
-	botState = BotState::e_lost;
+
+	//General
 	firstFrame = true;
-	scanAngle = (m_initialData.scanFOV*2.0f) * 4.5f;//((360.0f/(m_initialData.scanFOV*2.0f))/3) * (m_initialData.scanFOV*2.0f);
-	seenShots.clear();
+	seenShots.clear();	//Not currently in use anyway.
+
+	//Behaviour
+	botState = BotState::e_lost;
 	enemySeen = false;
-	scanDirMod = 1;
 	framesHunting = 0;
 	framesLost = 0;
+
+	//Scanning Data
+	scanDir.set(1, 0);
+	scanAngle = (m_initialData.scanFOV*2.0f) * 4.5f;
+	scanDirMod = 1;
 	lostAngleMod = 0;
+	lookMod = 1;
+	
+	//Firing
 	shot = false;
 	leadState = AimState::e_noTarget;
-	attemptedLead = false;
+	attemptedLead = false;	
+	shotsFired = false;
+	aimAngleMod = (m_initialData.scanFOV*2.0f)/6.0f;
+	aimDirMod = 1;
 
+	//Set Up move Targets
+	moveTargets.push_back(new kf::Vector2(1, m_initialData.mapData.height - 3));
+	moveTargets.push_back(new kf::Vector2(2, 7));
+	moveTargets.push_back(new kf::Vector2(2, m_initialData.mapData.height - 3));
+	moveTargets.push_back(new kf::Vector2(15, m_initialData.mapData.height - 3));
+	curTarget = -1;
+	
+	//Movement/Pathfinding
+	//Pathfinding Move Costs (though Diag isn't used anymore.
 	adjGVal = 10;
-	diagGVal = 14;
+	diagGVal = 14; 
+	moveTimer = 0.0f;
 
-	/*
-	kf::Vector2 initVec;
-	initVec.set(-1. - 1);
-	invalidVecPtr = new kf::Vector2(initVec);
-
-	movePoints.resize(m_initialData.mapData.width * m_initialData.mapData.height, invalidVecPtr);
-	*/
 	setupNodes();
 }
 
 void HandsomeBot::update(const BotInput &input, BotOutput27 &output)
 {
 	enemySeen = false;
+	moveTimer += 0.1f;	//Known time between updates.
 
 	if (firstFrame) 
 	{
@@ -66,16 +83,18 @@ void HandsomeBot::update(const BotInput &input, BotOutput27 &output)
 	}
 
 	//Check what you've seen. Respond accordingly.
-		for (int i = 0; i < input.scanResult.size(); i++)
+	for (int i = 0; i < input.scanResult.size(); i++)
 		{
 			//Saw enemy bot. Stop searching, prepare for attack.
 			if (input.scanResult[i].type == VisibleThing::e_robot)
 			{
 				botState = BotState::e_attacking;
+				shotsFired = 0;
+				enemySeen = true;
 				lastPos = curPos;
 				curPos = input.scanResult[i].position;
-				enemySeen = true;
-
+				
+				/*
 				if (leadState == AimState::e_needLead)
 				{
 					nextPos = curPos + (curPos - lastPos);
@@ -85,6 +104,7 @@ void HandsomeBot::update(const BotInput &input, BotOutput27 &output)
 
 					leadState = AimState::e_haveLead;
 				}
+				*/
 				break;
 			}
 			//Saw enemy bullet, store it so we can track it.
@@ -115,16 +135,20 @@ void HandsomeBot::update(const BotInput &input, BotOutput27 &output)
 	//If we've got no idea where the opponent is, start looking around everywhere.
 	case BotState::e_lost:
 		//Determine Scan direction
-		scanDir = scanDir.rotate(scanAngle);
+		//scanDir = scanDir.rotate(scanAngle);
+		scanDir = output.moveDirection * lookMod;
 		output.lookDirection = scanDir;
 		output.action = BotOutput::scan;
 		framesLost++;
+		lookMod *= -1;
 
+		/*
 		if (framesLost > 3) 
 		{
 			scanDir = scanDir.rotate(m_initialData.scanFOV*2.0f);
 			framesLost = 0;
-		}	
+		}
+		*/
 		break;
 
 	case BotState::e_hunting:
@@ -142,6 +166,23 @@ void HandsomeBot::update(const BotInput &input, BotOutput27 &output)
 		break;
 
 	case BotState::e_attacking:
+		if (shotsFired < 10) 
+		{
+			kf::Vector2 aimDir;
+			aimDir = curPos - input.position;
+			aimDir = aimDir.rotate(aimAngleMod * (shotsFired % 5) * aimDirMod);
+			output.lookDirection = aimDir;
+			aimDirMod *= -1;
+			shotsFired++;
+
+			output.action = BotOutput::shoot;
+		}
+		else 
+		{
+			shotsFired = 0;
+			botState = BotState::e_lost;
+		}
+		/*
 		if (leadState == AimState::e_noTarget) 
 		{
 			output.action = BotOutput::scan;
@@ -173,6 +214,7 @@ void HandsomeBot::update(const BotInput &input, BotOutput27 &output)
 			framesHunting = 1;
 			botState = BotState::e_hunting;
 		}
+		*/
 		break;
 
 	default:
@@ -180,41 +222,52 @@ void HandsomeBot::update(const BotInput &input, BotOutput27 &output)
 	}
 
 	//Determine Movement Direction
-	bool endOfPath = false;
 	kf::Vector2 offsetVec;
 	offsetVec.set(0.5, 0.5);
-	//if (movePoints.size() > 0) 
-	//{
-		//if (movePoints[curPoint] != invalidVecPtr)
-		//{
-			//output.moveDirection = *movePoints[curPoint] - input.position;
-			output.moveDirection = (targetPtr->location - input.position) + offsetVec;
-		//}
-		//else 
-		//{
-//			endOfPath = true;
-		//}
-	//}
+	
+	output.moveDirection = (targetPtr->location - input.position) + offsetVec;
 
-	if (output.moveDirection.length() < 2 || endOfPath)
+	//Determine if we've reached our current node (or we're stuck).
+	if (output.moveDirection.length() < 1 || moveTimer >= 1.0f)
 	{
-		if (targetPtr->parentID > -1)
+		if (targetPtr->parentID > -1 && moveTimer < 1.0f)
 		{
+			prevTargetPtr = targetPtr;
 			targetPtr = nodes[targetPtr->parentID];
+			output.moveDirection = (targetPtr->location - input.position) + offsetVec;
+			//output.moveDirection -= input.velocity;
+
+			kf::Vector2 normalDir = output.moveDirection;
+			normalDir.normalise();
+			kf::Vector2 normalVel = input.velocity;
+			normalVel.normalise();
+			float angleBetween = acos(normalDir.dot(normalVel)) * 180.0f/3.141592f;
+
+			if (angleBetween > 15.0f)
+			{
+				output.moveDirection -= input.velocity * 0.5f;
+			}
 		}
 		else 
 		{
 			pickTarget(input.position);
 		}
+
+		output.motor = 1.0f;
+		moveTimer = 0;
+	}
+	else 
+	{
+		output.motor = 1.0f;
 	}
 	
 	//If hit, freak out.
+	/*
 	if(input.health < lastHealth)
 	{
-		//pickTarget(input.position);
+		pickTarget(input.position);
 	}
-
-	output.motor = 1.0;
+	*/
 
 	//output.spriteFrame = (output.spriteFrame+1)%2;
 
@@ -227,29 +280,15 @@ void HandsomeBot::update(const BotInput &input, BotOutput27 &output)
 	output.text.push_back(TextMsg(testOutput, input.position - kf::Vector2(0.0f, 1.0f), 0.0f, 0.7f, 1.0f, 80));
 
 	output.lines.clear();
-	output.lines.push_back(Line(input.position, targetPtr->location, 1.0, 1.0, 0.0));
-	output.lines.push_back(Line(input.position, lastPos, 1.0, 0.0, 0.0));
-	output.lines.push_back(Line(input.position, curPos, 0.0, 1.0, 0.0));
-	output.lines.push_back(Line(input.position, nextPos, 0.0, 0.0, 1.0));
+	output.lines.push_back(Line(input.position, targetPtr->location + offsetVec, 1.0, 1.0, 0.0));
+	//output.lines.push_back(Line(input.position, lastPos, 1.0, 0.0, 0.0));
+	//output.lines.push_back(Line(input.position, curPos, 0.0, 1.0, 0.0));
+	//output.lines.push_back(Line(input.position, nextPos, 0.0, 0.0, 1.0));
 
 	kf::Vector2 pos1;
 	kf::Vector2 pos2;
 	pos2.set(1, 1);
 	pos1.set(2, 2);
-
-	/*
-	for (int k = 0; k < movePoints.size(); k++) 
-	{
-		if (k > 0 && movePoints[k] != invalidVecPtr) 
-		{
-			output.lines.push_back(Line(*movePoints[k - 1], *movePoints[k], 1.0, 0.0, 1.0));
-		}
-		else 
-		{
-			output.lines.push_back(Line(input.position, *movePoints[k], 1.0, 0.0, 1.0));
-		}
-	}
-	*/
 
 	aStarNode* drawNode = targetPtr;
 
@@ -287,19 +326,9 @@ float HandsomeBot::floatMod(float input, float modNum)
 
 void HandsomeBot::pickTarget(kf::Vector2 inputPos)
 {
-	//Free MovePoint Vector Memory
-	/*
-	for(int i = 0; i < movePoints.size(); i++)
-	{
-		if (movePoints[i] != invalidVecPtr) {
-			delete movePoints[i];
-			movePoints[i] = invalidVecPtr;
-		}
-	}
-	*/
+	curTarget++;
+	curTarget = curTarget % 4;
 
-	//movePoints.clear();
-	curPoint = 1;
 	float limiter = 7;
 
 	int x;
@@ -313,7 +342,7 @@ void HandsomeBot::pickTarget(kf::Vector2 inputPos)
 	kf::Vector2 targetPos;
 	targetPos.set(x, y);
 
-	getAStarPath(targetPos, inputPos);
+	getAStarPath(*moveTargets[curTarget], inputPos);
 
 	//moveTarget.set(x + 0.5, y + 0.5);
 	
@@ -400,7 +429,6 @@ void HandsomeBot::getAStarPath(kf::Vector2 startPos, kf::Vector2 targetPos)
 			targetLocation.set(nodeX, nodeY-1);
 			targetID = locationToID(targetLocation);
 			setNodeValues(nodes[targetID], nodes[checkNode], targetNode);
-			//horizNodeSweep(nodes[checkNode], (nodes[checkNode]->location.y - 1), targetNode);
 		}
 
 		if (nodes[checkNode]->edgesMask & aStarNode::NodeEdges::e_bottom)
@@ -408,7 +436,6 @@ void HandsomeBot::getAStarPath(kf::Vector2 startPos, kf::Vector2 targetPos)
 			targetLocation.set(nodeX, nodeY + 1);
 			targetID = locationToID(targetLocation);
 			setNodeValues(nodes[targetID], nodes[checkNode], targetNode);
-			//horizNodeSweep(nodes[checkNode], (nodes[checkNode]->location.y + 1), targetNode);
 		}
 
 		if (nodes[checkNode]->edgesMask & aStarNode::NodeEdges::e_left)
@@ -416,7 +443,6 @@ void HandsomeBot::getAStarPath(kf::Vector2 startPos, kf::Vector2 targetPos)
 			targetLocation.set(nodeX - 1, nodeY);
 			targetID = locationToID(targetLocation);
 			setNodeValues(nodes[targetID], nodes[checkNode], targetNode);
-			//vertNodeSweep(nodes[checkNode], (nodes[checkNode]->location.x - 1), targetNode);
 		}
 
 		if (nodes[checkNode]->edgesMask & aStarNode::NodeEdges::e_right)
@@ -424,7 +450,6 @@ void HandsomeBot::getAStarPath(kf::Vector2 startPos, kf::Vector2 targetPos)
 			targetLocation.set(nodeX + 1, nodeY);
 			targetID = locationToID(targetLocation);
 			setNodeValues(nodes[targetID], nodes[checkNode], targetNode);
-			//vertNodeSweep(nodes[checkNode], (nodes[checkNode]->location.x + 1), targetNode);
 		}
 
 		if (!nextToPathTarget)
@@ -440,73 +465,10 @@ void HandsomeBot::getAStarPath(kf::Vector2 startPos, kf::Vector2 targetPos)
 	//CheckNode is now for tracing the path back.
 	checkNode = locationToID(targetNode->location);
 	targetPtr = nodes[checkNode];
-	
-	//bool noMoreData = false;
-
-	//Do
-	/*
-	for(int k = 0; k < movePoints.size(); k++)
-	{
-		if(!noMoreData)
-		{
-			kf::Vector2* vecPtr = new kf::Vector2(nodes[checkNode]->location);
-			movePoints[k] = vecPtr;
-			checkNode = nodes[checkNode]->parentID;
-		}
-
-		if (checkNode == locationToID(startNode->location))
-		{
-			noMoreData = true;
-		}
-	} 
-	*/
-	//while (checkNode != locationToID(startNode->location));
+	prevTargetPtr = nodes[checkNode];
 }
 
-void HandsomeBot::horizNodeSweep(aStarNode * currentNode, int yVal, aStarNode * targetNode)
-{
-	int startVal = 0;
-	int endVal = 0;
-
-	if (currentNode->edgesMask & aStarNode::NodeEdges::e_left)
-	{
-		startVal = locationToID(currentNode->location) - 1;
-	}
-
-	if (currentNode->edgesMask & aStarNode::NodeEdges::e_right)
-	{
-		endVal = locationToID(currentNode->location) + 1;
-	}
-
-	for (int i = startVal; i < endVal; i++) 
-	{
-		setNodeValues(nodes[i], currentNode, targetNode);
-	}
-}
-
-void HandsomeBot::vertNodeSweep(aStarNode * currentNode, int xVal, aStarNode * targetNode)
-{
-	kf::Vector2 targetLocation;
-
-	if (currentNode->edgesMask & aStarNode::NodeEdges::e_top)
-	{
-		targetLocation.set(xVal, (currentNode->location.y - 1));
-		int targetID = locationToID(targetLocation);
-		setNodeValues(nodes[targetID], currentNode, targetNode);
-	}
-
-	if (currentNode->edgesMask & aStarNode::NodeEdges::e_bottom)
-	{
-		targetLocation.set(xVal, (currentNode->location.y + 1));
-		int targetID = locationToID(targetLocation);
-		setNodeValues(nodes[targetID], currentNode, targetNode);
-	}
-
-	targetLocation.set(xVal, (currentNode->location.y));
-	int targetID = locationToID(targetLocation);
-	setNodeValues(nodes[targetID], currentNode, targetNode);
-}
-
+//This function should definitely be in the actual class. Silly...
 void HandsomeBot::setNodeValues(aStarNode * nodeToSet, aStarNode * currentNode, aStarNode * targetNode)
 {
 	if (!nextToPathTarget) {

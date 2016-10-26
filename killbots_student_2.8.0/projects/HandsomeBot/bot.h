@@ -27,8 +27,6 @@ public:
 	aStarNode* getNode(kf::Vector2 location);
 	int locationToID(kf::Vector2 location);
 	kf::Vector2 IDToLocation(int ID);
-	void horizNodeSweep(aStarNode* currentNode, int yVal, aStarNode* targetNode);
-	void vertNodeSweep(aStarNode* currentNode, int xVal, aStarNode* targetNode);
 	void setNodeValues(aStarNode* nodeToSet, aStarNode* currentNode, aStarNode* targetNode);
 	int findNextNode();
 
@@ -64,12 +62,14 @@ public:
 	float framesHunting;
 	float framesLost;
 	float lostAngleMod;
+	int lookMod;
 
 	//Movement
-	int curPoint;
+	int curTarget;
 	aStarNode* targetPtr;
-	//kf::Vector2 moveTarget;
-	//std::vector<kf::Vector2*> movePoints;
+	aStarNode* prevTargetPtr;
+	float moveTimer;
+	std::vector<kf::Vector2*> moveTargets;
 
 	//Pathfinding
 	std::vector<aStarNode*> nodes;
@@ -79,6 +79,9 @@ public:
 	kf::Vector2* invalidVecPtr;
 	
 	//Aiming
+	int shotsFired;
+	int aimDirMod;
+	float aimAngleMod;
 	bool shot;
 	bool attemptedLead;
 	AimState leadState;
