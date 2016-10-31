@@ -24,10 +24,10 @@ void HandsomeBot::init(const BotInitialData &initialData, BotAttributes &attrib)
 {
 	//Basic Attributes
 	m_initialData = initialData;
-	attrib.health=10.0;
-	attrib.motor=1.0;
-	attrib.weaponSpeed=1.0;
-	attrib.weaponStrength = 1.5;
+	attrib.health=11.0;
+	attrib.motor=0.75;
+	attrib.weaponSpeed=0.0;
+	attrib.weaponStrength = 2.5;
 
 	//General
 	firstFrame = true;
@@ -400,7 +400,15 @@ kf::Vector2 HandsomeBot::IDToLocation(int ID)
 void HandsomeBot::getAStarPath(kf::Vector2 startPos, kf::Vector2 targetPos)
 {
 	nextToPathTarget = false;
-	startPos.set(roundf(startPos.x), roundf(startPos.y));
+	int xPos = startPos.x;
+	int yPos = startPos.y;
+	startPos.set(xPos, yPos);//floorf(startPos.x), roundf(startPos.y));
+	/*
+	if (m_initialData.mapData.data[locationToID(startPos)].wall)
+	{
+
+	}
+	*/
 	targetPos.set(roundf(targetPos.x), roundf(targetPos.y));
 	aStarNode* startNode = getNode(startPos);
 	aStarNode* targetNode = getNode(targetPos);
