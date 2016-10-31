@@ -39,6 +39,6 @@ public:
 	int edgesMask;
 	kf::Vector2 location;
 	NodeState state;
-	std::vector<nodeLink> links;
+	//std::vector<nodeLink> links;
 };
 
