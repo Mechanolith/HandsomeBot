@@ -51,7 +51,7 @@ void HandsomeBot::init(const BotInitialData &initialData, BotAttributes &attrib)
 	leadState = AimState::e_noTarget;
 	attemptedLead = false;	
 	shotsFired = false;
-	aimAngleMod = (m_initialData.scanFOV*2.0f)/6.0f;
+	aimAngleMod = (m_initialData.scanFOV*2.0f)/13.0f;
 	aimDirMod = 1;
 
 	//Set Up move Targets
@@ -277,7 +277,7 @@ void HandsomeBot::update(const BotInput &input, BotOutput27 &output)
 	//sprintf(buf, "%d", scanAngle);
 	//output.text.push_back(TextMsg(buf, input.position - kf::Vector2(0.0f, 1.0f), 0.0f, 0.7f, 1.0f,80));
 	std::string testOutput = "HP: " + std::to_string(input.health + 1600);
-	output.text.push_back(TextMsg(testOutput, input.position - kf::Vector2(0.0f, 1.0f), 0.0f, 0.7f, 1.0f, 80));
+	//output.text.push_back(TextMsg(testOutput, input.position - kf::Vector2(0.0f, 1.0f), 0.0f, 0.7f, 1.0f, 80));
 
 	output.lines.clear();
 	output.lines.push_back(Line(input.position, targetPtr->location + offsetVec, 1.0, 1.0, 0.0));
